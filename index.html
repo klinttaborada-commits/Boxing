@@ -1,1 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pinoy Boxing Game with Gloves, Shorts, Ring, and Crowd</title>
+  <style>
+    body {
+      background-color: #f1f1f1;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+    }
+    canvas {
+      border: 5px solid #000;
+      display: block;
+      margin: 20px auto;
+      background: #ffffff;
+    }
+    #info {
+      background: #0038a8;
+      color: white;
+      padding: 10px;
+    }
+    #health-bars {
+      display: flex;
+      justify-content: space-around;
+      margin: 10px;
+    }
+    .bar {
+      height: 20px;
+      width: 200px;
+      background-color: red;
+      border: 2px solid #000;
+      position: relative;
+    }
+    .bar-inner {
+      height: 100%;
+      background-color: green;
+      width: 100%;
+    }
+    #start-btn {
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #ffcd00;
+      border: none;
+      cursor: pointer;
+      margin: 10px;
+    }
+    #start-btn:hover {
+      background-color: #fbc02d;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h1>🏆 Pinoy Boxing Game 🥊</h1>
+    <p>Controls: A = Left, D = Right, Space = Punch</p>
+    <button id="start-btn">Start Game</button>
+  </div>
 
+  <div id="health-bars">
+    <div class="bar"><div id="player-health" class="bar-inner"></div></div>
+    <div class="bar"><div id="enemy-health" class="bar-inner"></div></div>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="450"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const ring = {
+      x: 50,
+      y: 250,
+      width: 700,
+      height: 180,
+      ropeColor: '#d4af37',
+      floorColor: '#222',
+    };
+
+    const crowdColors = ['#333', '#555', '#222', '#444'];
+
+    const player = {
+      x: 150,
+      y: 350,
+      width: 50,
+      height: 100,
+      color: '#0038a8', // Blue
+      shortsColor: '#0055cc',
+      glovesColor: '#d62828',
+      health: 100,
+      punching: false,
+      punchTimer: 0
+    };
+
+    const enemy = {
+      x: 600,
+      y: 350,
+      width: 50,
+      height: 100,
+      color: '#ce1126', // Red
+      shortsColor: '#9a1b0f',
+      glovesColor: '#f77f00',
+      health: 100,
+      punching: false,
+      punchTimer: 0
+    };
+
+    let keys = {};
+    let gameRunning = false;
+
+    function drawRing() {
+      // Ring floor
+      ctx.fillStyle = ring.floorColor;
+      ctx.fillRect(ring.x, ring.y, ring.width, ring.height);
+
+      // Ring ropes - 4 ropes, spaced vertically
+      ctx.strokeStyle = ring.ropeColor;
+      ctx.lineWidth = 6;
+      for (let i = 0; i < 4; i++) {
+        const ropeY = ring.y + 10 + i * 40;
+        ctx.beginPath();
+        ctx.moveTo(ring.x, ropeY);
+        ctx.lineTo(ring.x + ring.width, ropeY);
+        ctx.stroke();
+      }
+
+      // Ring posts (corners)
+      ctx.fillStyle = '#444';
+      const postRadius = 15;
+      [[ring.x, ring.y], [ring.x + ring.width, ring.y], [ring.x, ring.y + ring.height], [ring.x + ring.width, ring.y + ring.height]].forEach(([x,y]) => {
+        ctx.beginPath();
+        ctx.arc(x, y, postRadius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawCrowd() {
+      // Draw crowd silhouettes as circles and rectangles above the ring
+      const crowdArea = {
+        x: 0,
+        y: 0,
+        width: canvas.width,
+        height: 230
+      };
+      // Simple repeated people shapes
+      const personWidth = 20;
+      const personHeight = 40;
+      for (let i = 0; i < crowdArea.width; i += personWidth + 10) {
+        const x = i + 10;
+        // Random height variation
+        const heightVariation = Math.random() * 10;
+        // Body
+        ctx.fillStyle = crowdColors[Math.floor(Math.random() * crowdColors.length)];
+        ctx.fillRect(x, crowdArea.height - personHeight - heightVariation, personWidth, personHeight);
+
+        // Head
+        ctx.beginPath();
+        ctx.fillStyle = crowdColors[Math.floor(Math.random() * crowdColors.length)];
+        ctx.arc(x + personWidth / 2, crowdArea.height - personHeight - heightVariation - 10, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawBoxer(boxer) {
+      // Body
+      ctx.fillStyle = boxer.color;
+      ctx.fillRect(boxer.x, boxer.y, boxer.width, boxer.height);
+
+      // Shorts
+      ctx.fillStyle = boxer.shortsColor;
+      ctx.fillRect(boxer.x, boxer.y + boxer.height - 40, boxer.width, 40);
+
+      // Gloves
+      // Left glove
+      ctx.fillStyle = boxer.glovesColor;
+      ctx.beginPath();
+      ctx.ellipse(boxer.x - 10, boxer.y + 40, 15, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Right glove
+      let punchOffset = 0;
+      if (boxer.punching && boxer.punchTimer > 0) {
+        punchOffset = boxer === player ? 30 : -30;
+      }
+      ctx.beginPath();
+      ctx.ellipse(boxer.x + boxer.width + 10 + punchOffset, boxer.y + 40, 15, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head - circle
+      ctx.fillStyle = '#f1c27d';
+      ctx.beginPath();
+      ctx.arc(boxer.x + boxer.width / 2, boxer.y - 25, 25, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes simple
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(boxer.x + boxer.width / 2 - 8, boxer.y - 30, 5, 0, Math.PI * 2);
+      ctx.arc(boxer.x + boxer.width / 2 + 8, boxer.y - 30, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mouth simple line
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(boxer.x + boxer.width / 2 - 10, boxer.y - 15);
+      ctx.lineTo(boxer.x + boxer.width / 2 + 10, boxer.y - 15);
+      ctx.stroke();
+    }
+
+    function drawScene() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawCrowd();
+      drawRing();
+      drawBoxer(player);
+      drawBoxer(enemy);
+    }
+
+    function updateHealthBars() {
+      document.getElementById('player-health').style.width = player.health + '%';
+      document.getElementById('enemy-health').style.width = enemy.health + '%';
+    }
+
+    function checkPunchCollision(attacker, defender) {
+      // Simple box collision when attacker punches
+      if (!attacker.punching) return false;
+      let punchReach = 30;
+      let punchX = attacker.x + attacker.width + punchReach;
+      if (attacker === enemy) {
+        punchX = attacker.x - punchReach;
+      }
+      const punchRect = {
+        x: punchX,
+        y: attacker.y + 20,
+        width: 20,
+        height: 40,
+      };
+      const defenderRect = {
+        x: defender.x,
+        y: defender.y,
+        width: defender.width,
+        height: defender.height,
+      };
+      return (
+        punchRect.x < defenderRect.x + defenderRect.width &&
+        punchRect.x + punchRect.width > defenderRect.x &&
+        punchRect.y < defenderRect.y + defenderRect.height &&
+        punchRect.y + punchRect.height > defenderRect.y
+      );
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      // Movement controls for player
+      if (keys['a']) player.x -= 5;
+      if (keys['d']) player.x += 5;
+
+      // Keep player in ring bounds
+      player.x = Math.max(ring.x + 10, Math.min(ring.x + ring.width - player.width - 10, player.x));
+
+      // Enemy AI - simple approach player
+      if (!enemy.punching) {
+        if (enemy.x > player.x + 30) enemy.x -= 3;
+        else if (enemy.x < player.x - 30) enemy.x += 3;
+      }
+
+      // Enemy AI punch timer
+      if (enemy.punching) {
+        enemy.punchTimer--;
+        if (enemy.punchTimer <= 0) {
+          enemy.punching = false;
+        }
+      } else {
+        // Random chance to punch when close to player
+        if (Math.abs(enemy.x - player.x) < 70 && Math.random() < 0.01) {
+          enemy.punching = true;
+          enemy.punchTimer = 15;
+        }
+      }
+
+      // Player punch timer
+      if (player.punching) {
+        player.punchTimer--;
+        if (player.punchTimer <= 0) {
+          player.punching = false;
+        }
+      }
+
+      // Check punches collision
+      if (checkPunchCollision(player, enemy)) {
+        enemy.health -= 0.7;
+        updateHealthBars();
+      }
+      if (checkPunchCollision(enemy, player)) {
+        player.health -= 0.7;
+        updateHealthBars();
+      }
+
+      // Win/loss conditions
+      if (enemy.health <= 0) {
+        alert("🏅 You win! Mabuhay ang Pilipinas!");
+        gameRunning = false;
+      } else if (player.health <= 0) {
+        alert("😢 You lost! Try again!");
+        gameRunning = false;
+      }
+
+      drawScene();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.repeat) return; // avoid repeated firing while holding
+      if (e.key.toLowerCase() === ' ') {
+        if (!player.punching) {
+          player.punching = true;
+          player.punchTimer = 15;
+        }
+        e.preventDefault();
+      }
+      keys[e.key.toLowerCase()] = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      player.health = 100;
+      enemy.health = 100;
+      player.x = 150;
+      enemy.x = 600;
+      player.punching = false;
+      enemy.punching = false;
+      updateHealthBars();
+      gameRunning = true;
+      gameLoop();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pinoy Boxing Game</title>
+  <style>
+    body {
+      background-color: #f1f1f1;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+    }
+
+    canvas {
+      border: 5px solid #000;
+      display: block;
+      margin: 20px auto;
+      background: #ffffff;
+    }
+
+    #info {
+      background: #0038a8;
+      color: white;
+      padding: 10px;
+    }
+
+    #health-bars {
+      display: flex;
+      justify-content: space-around;
+      margin: 10px;
+    }
+
+    .bar {
+      height: 20px;
+      width: 200px;
+      background-color: red;
+      border: 2px solid #000;
+      position: relative;
+    }
+
+    .bar-inner {
+      height: 100%;
+      background-color: green;
+      width: 100%;
+    }
+
+    #start-btn {
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #ffcd00;
+      border: none;
+      cursor: pointer;
+      margin: 10px;
+    }
+
+    #start-btn:hover {
+      background-color: #fbc02d;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h1>🏆 Pinoy Boxing Game 🥊</h1>
+    <p>Controls: A = Left, D = Right, Space = Punch</p>
+    <button id="start-btn">Start Game</button>
+  </div>
+
+  <div id="health-bars">
+    <div class="bar"><div id="player-health" class="bar-inner"></div></div>
+    <div class="bar"><div id="enemy-health" class="bar-inner"></div></div>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const player = {
+      x: 100,
+      y: 300,
+      width: 50,
+      height: 100,
+      color: '#0038a8',
+      health: 100
+    };
+
+    const enemy = {
+      x: 650,
+      y: 300,
+      width: 50,
+      height: 100,
+      color: '#ce1126',
+      health: 100
+    };
+
+    let keys = {};
+    let gameRunning = false;
+
+    function drawBoxer(boxer) {
+      ctx.fillStyle = boxer.color;
+      ctx.fillRect(boxer.x, boxer.y, boxer.width, boxer.height);
+    }
+
+    function drawScene() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBoxer(player);
+      drawBoxer(enemy);
+    }
+
+    function updateHealthBars() {
+      document.getElementById('player-health').style.width = player.health + '%';
+      document.getElementById('enemy-health').style.width = enemy.health + '%';
+    }
+
+    function checkCollision(a, b) {
+      return a.x < b.x + b.width &&
+             a.x + a.width > b.x &&
+             a.y < b.y + b.height &&
+             a.y + a.height > b.y;
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      // Movement
+      if (keys['a']) player.x -= 5;
+      if (keys['d']) player.x += 5;
+
+      // Keep player in bounds
+      player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+
+      // Simple AI
+      if (enemy.x > player.x) enemy.x -= 2;
+      else enemy.x += 2;
+
+      // Attack logic
+      if (keys[' '] && checkCollision(player, enemy)) {
+        enemy.health -= 1;
+        updateHealthBars();
+      }
+
+      // Win condition
+      if (enemy.health <= 0) {
+        alert("🏅 You win! Mabuhay ang Pilipinas!");
+        gameRunning = false;
+      }
+
+      drawScene();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      keys[e.key.toLowerCase()] = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      player.health = 100;
+      enemy.health = 100;
+      player.x = 100;
+      enemy.x = 650;
+      updateHealthBars();
+      gameRunning = true;
+      gameLoop();
+    });
+  </script>
+</body>
+</html>
